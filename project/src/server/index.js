@@ -12,9 +12,23 @@ app.use(bodyParser.json())
 
 app.use('/', express.static(path.join(__dirname, '../public')))
 
-// your API calls
+app.get('/showRover/:roverID', async (req, res) => {
+    try {
+        let rover = req.params.roverID;
+        // fetch SOL setting
+        let manifest = await fetch(`https://api.nasa.gov/mars-photos/api/v1/manifests/${req.params.roverID}?api_key=${process.env.API_KEY}`)
+            .then(res => res.json())
 
-// example API call
+        let MAX_SOL =  manifest.photo_manifest.max_sol;
+
+        let response = await fetch(`https://api.nasa.gov/mars-photos/api/v1/rovers/${req.params.roverID}/photos?sol=${MAX_SOL}&api_key=${process.env.API_KEY}`)
+            .then(res => res.json())
+        res.send({ response })
+    } catch (err) {
+        console.error('error:', err);
+    }
+})
+
 app.get('/apod', async (req, res) => {
     try {
         let image = await fetch(`https://api.nasa.gov/planetary/apod?api_key=${process.env.API_KEY}`)

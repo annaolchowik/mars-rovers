@@ -5,6 +5,7 @@ body {
   flex-direction: column;
   font-family: Arial;
   min-height: 100vh;
+  line-height: 25px;
 }
 
 header {
@@ -14,6 +15,22 @@ header {
 main {
   flex: 1;
   padding: 20px;
+}
+
+ul {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+}
+
+ul li {
+  list-style-type: none;
+}
+
+ul li a {
+  list-style-type: none;
+  color: cornflowerblue;
+  cursor: pointer;
 }
 
 footer {

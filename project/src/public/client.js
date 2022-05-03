@@ -1,9 +1,11 @@
 let store = {
-    user: { name: "Student" },
+    user: { name: "Anna" },
     apod: '',
     rovers: ['Curiosity', 'Opportunity', 'Spirit'],
+    data: '',
+    isLoading: true,
+    selected: ''
 }
-
 // add our markup to the page
 const root = document.getElementById('root')
 
@@ -16,31 +18,51 @@ const render = async (root, state) => {
     root.innerHTML = App(state)
 }
 
-
 // create content
 const App = (state) => {
-    let { rovers, apod } = state
+    let { apod, user } = state
 
     return `
         <header></header>
         <main>
-            ${Greeting(store.user.name)}
+            ${greeting(user.name)}
             <section>
-                <h3>Put things on the page!</h3>
-                <p>Here is an example section.</p>
-                <p>
-                    One of the most popular websites at NASA is the Astronomy Picture of the Day. In fact, this website is one of
-                    the most popular websites across all federal agencies. It has the popular appeal of a Justin Bieber video.
-                    This endpoint structures the APOD imagery and associated metadata so that it can be repurposed for other
-                    applications. In addition, if the concept_tags parameter is set to True, then keywords derived from the image
-                    explanation are returned. These keywords could be used as auto-generated hashtags for twitter or instagram feeds;
-                    but generally help with discoverability of relevant imagery.
-                </p>
-                ${ImageOfTheDay(apod)}
+                ${imageOfTheDay(apod)}
             </section>
         </main>
         <footer></footer>
     `
+}
+
+const generateRoverHtml = (roverId) => {
+    const roverPhotos = store[roverId].response.photos
+    const roverData = roverPhotos[0].rover
+    const {
+        launch_date,
+        landing_date,
+        status,
+    } = roverData
+
+    // dont know where to get date of creation
+    const latest_date = roverPhotos.reduce((a, b) => {
+        return new Date(a.earth_date) > new Date(b.earth_date) ? a : b;
+    });
+
+    return (store[roverId]) ?
+        `
+            <p>ROVER NAME: ${roverId}</p>
+            <p>Launch Date: ${launch_date}</p>
+            <p>Landing Date: ${landing_date}</p>
+            <p>Status: ${status}</p>
+            <p>Most recently available photos</p>
+            <p>${generateRoverPhotos(roverPhotos)}</p>
+        `
+        :
+        `Unable to load data from rover ${roverId}`
+}
+
+const generateRoverPhotos = (roverPhotos) => {
+    return roverPhotos.map((photo) => `<img src='${photo.img_src}' width='150' />`)
 }
 
 // listening for load event because page should load before any JS is called
@@ -48,58 +70,86 @@ window.addEventListener('load', () => {
     render(root, store)
 })
 
+store.rovers.map((rover) => {
+    document.getElementById(`rover-${rover}`).addEventListener('click', (event) => {
+        event.preventDefault()
+        displayRoverWithId(rover)
+    });
+})
+
+
 // ------------------------------------------------------  COMPONENTS
 
-// Pure function that renders conditional information -- THIS IS JUST AN EXAMPLE, you can delete it.
-const Greeting = (name) => {
-    if (name) {
-        return `
-            <h1>Welcome, ${name}!</h1>
-        `
-    }
+const greeting = (name) => `<h1>Welcome${name ? `, ${name}` : ''}!</h1>`
 
-    return `
-        <h1>Hello!</h1>
-    `
-}
-
-// Example of a pure function that renders infomation requested from the backend
-const ImageOfTheDay = (apod) => {
-
-    // If image does not already exist, or it is not from today -- request it again
+const imageOfTheDay = (apod) => {
+    const {
+        isLoading
+    } = store;
     const today = new Date()
-    const photodate = new Date(apod.date)
-    console.log(photodate.getDate(), today.getDate());
 
-    console.log(photodate.getDate() === today.getDate());
-    if (!apod || apod.date === today.getDate() ) {
+    if (!apod || apod.image?.date === today.getDate() ) {
         getImageOfTheDay(store)
+        const newState = {
+            ...store,
+            isLoading: false
+        }
+        Object.assign(store, newState)
     }
 
-    // check if the photo of the day is actually type video!
-    if (apod.media_type === "video") {
-        return (`
-            <p>See today's featured video <a href="${apod.url}">here</a></p>
-            <p>${apod.title}</p>
-            <p>${apod.explanation}</p>
+    if(!isLoading) {
+        const apodImage = apod.image;
+        const {
+            explanation,
+            hdurl,
+            media_type,
+            title
+        } = apodImage;
+
+        return (media_type === "video") ? (`
+            <p>See today's featured video <a href="${hdurl}">here</a></p>
+            <p>${title}</p>
+            <p>${explanation}</p>
+        `) : (`
+            <img src="${hdurl}" width="300px" />
+            <p>${explanation}</p>
         `)
     } else {
-        return (`
-            <img src="${apod.image.url}" height="350px" width="100%" />
-            <p>${apod.image.explanation}</p>
-        `)
+        return ''
+    }
+}
+
+const displayRoverWithId = (roverId) => {
+    let roverHtml = `Loading ${roverId}`
+    if(!store[roverId]) {
+        getImageOfTheDayRover(roverId, store)
+            .then(() => {
+                roverHtml = generateRoverHtml(roverId)
+                root.innerHTML = roverHtml
+            })
+            .catch((err) => console.log('getImageOfTheDayRover error: ', err))
+    } else {
+        roverHtml = generateRoverHtml(roverId)
+        root.innerHTML = roverHtml
     }
 }
 
 // ------------------------------------------------------  API CALLS
 
-// Example API call
-const getImageOfTheDay = (state) => {
-    let { apod } = state
-
+const getImageOfTheDay = () => {
     fetch(`http://localhost:3000/apod`)
         .then(res => res.json())
         .then(apod => updateStore(store, { apod }))
+        .catch((err) => console.log(err));
+}
 
-    return data
+const getImageOfTheDayRover = (rover, state) => {
+    return fetch(`/showRover/${rover.toLowerCase()}`)
+        .then(res => res.json())
+        .then(data => updateStoreRover(state, {[rover]:  data }))
+        .catch((err) => console.log('getImageOfTheDayRover: ', err))
+}
+
+const updateStoreRover = (state, newState) => {
+    store = Object.assign(state, newState)
 }
